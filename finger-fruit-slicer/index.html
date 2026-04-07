@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finger Fruit Slicer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: 'Baloo 2', system-ui, sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+    #container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      max-width: 1280px;
+      max-height: 800px;
+    }
+    #webcam {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      transform: scaleX(-1);
+      object-fit: cover;
+      display: none;
+      z-index: 0;
+    }
+    #gameCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 1;
+    }
+    #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0,0,0,0.5);
+      z-index: 10;
+      backdrop-filter: blur(8px);
+    }
+    #overlay.hidden { display: none; }
+    #overlay h1 {
+      font-size: 56px;
+      font-weight: 800;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      letter-spacing: 2px;
+    }
+    #overlay p { font-size: 18px; opacity: 0.7; margin-top: 4px; }
+    #startBtn {
+      margin-top: 24px;
+      padding: 14px 44px;
+      font-size: 20px;
+      background: linear-gradient(135deg, #e17055, #fdcb6e);
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 700;
+      letter-spacing: 2px;
+      box-shadow: 0 6px 25px rgba(225,112,85,0.4);
+      transition: transform 0.15s;
+    }
+    #startBtn:hover { transform: scale(1.05); }
+    #startBtn:disabled { background: #555; box-shadow: none; cursor: wait; }
+    #hud {
+      position: absolute;
+      top: 14px; left: 20px; right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 26px;
+      font-weight: 700;
+      z-index: 5;
+      pointer-events: none;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    #trackingStatus {
+      position: absolute;
+      bottom: 12px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 13px;
+      opacity: 0.4;
+      z-index: 5;
+    }
+    #comboDisplay {
+      position: absolute;
+      top: 55px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 28px;
+      font-weight: 800;
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="gameCanvas"></canvas>
+    <div id="hud">
+      <span id="scoreDisplay">0</span>
+      <span id="missDisplay"></span>
+    </div>
+    <div id="comboDisplay"></div>
+    <div id="trackingStatus">loading...</div>
+    <div id="overlay">
+      <h1>FRUIT SLICER</h1>
+      <p>swipe your finger to slice the fruits</p>
+      <p id="modeLabel" style="font-size:13px; opacity:0.4; margin-top:2px;"></p>
+      <button id="startBtn" disabled>loading...</button>
+    </div>
+  </div>
+
+  <script type="module">
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const overlay = document.getElementById('overlay');
+    const startBtn = document.getElementById('startBtn');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const missDisplay = document.getElementById('missDisplay');
+    const trackingStatus = document.getElementById('trackingStatus');
+    const modeLabel = document.getElementById('modeLabel');
+    const comboDisplay = document.getElementById('comboDisplay');
+
+    let W, H;
+    function resize() {
+      const c = document.getElementById('container');
+      W = c.clientWidth; H = c.clientHeight;
+      canvas.width = W; canvas.height = H;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // --- Fruit types ---
+    const FRUITS = [
+      { emoji: '🍉', color: '#e74c3c', splashColor: '#ff6b6b', name: 'watermelon' },
+      { emoji: '🍊', color: '#f39c12', splashColor: '#fdcb6e', name: 'orange' },
+      { emoji: '🍋', color: '#f1c40f', splashColor: '#ffeaa7', name: 'lemon' },
+      { emoji: '🍎', color: '#c0392b', splashColor: '#fab1a0', name: 'apple' },
+      { emoji: '🍑', color: '#e17055', splashColor: '#fad390', name: 'peach' },
+      { emoji: '🥝', color: '#27ae60', splashColor: '#55efc4', name: 'kiwi' },
+      { emoji: '🍇', color: '#8e44ad', splashColor: '#a29bfe', name: 'grape' },
+      { emoji: '🍓', color: '#e74c3c', splashColor: '#ff7675', name: 'strawberry' },
+    ];
+
+    // --- State ---
+    let state = 'menu';
+    let score = 0;
+    let misses = 0;
+    let maxMisses = 3;
+    let fruits = [];
+    let particles = [];
+    let sliceTrail = [];
+    let floatingTexts = [];
+    let combo = 0;
+    let comboTimer = 0;
+    let spawnTimer = 0;
+    let spawnInterval = 70;
+    let difficultyLevel = 0;
+    let frameCount = 0;
+
+    let useMouseFallback = false;
+    let handLandmarker = null;
+    let lastVideoTime = -1;
+
+    // Finger tracking
+    let fingerTips = []; // [{x, y, prevX, prevY, vx, vy}]
+    let fingerTrailPoints = []; // for drawing the swipe trail
+
+    // Mouse fallback
+    let mouseX = W / 2, mouseY = H / 2;
+    let prevMouseX = W / 2, prevMouseY = H / 2;
+    canvas.addEventListener('mousemove', (e) => {
+      if (useMouseFallback) {
+        const rect = canvas.getBoundingClientRect();
+        prevMouseX = mouseX;
+        prevMouseY = mouseY;
+        mouseX = ((e.clientX - rect.left) / rect.width) * W;
+        mouseY = ((e.clientY - rect.top) / rect.height) * H;
+      }
+    });
+
+    // --- Init ---
+    async function init() {
+      try {
+        startBtn.textContent = 'loading model...';
+        trackingStatus.textContent = 'loading hand model...';
+
+        const { HandLandmarker, FilesetResolver } = await import(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs'
+        );
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
+        );
+        handLandmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+            delegate: 'GPU',
+          },
+          runningMode: 'VIDEO',
+          numHands: 2,
+        });
+
+        trackingStatus.textContent = 'starting webcam...';
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720, facingMode: 'user' }
+        });
+        video.srcObject = stream;
+        await new Promise((r, e) => { video.onloadedmetadata = r; video.onerror = e; });
+        await video.play();
+
+        useMouseFallback = false;
+        modeLabel.textContent = 'hand tracking';
+        trackingStatus.textContent = 'show your hand';
+      } catch (err) {
+        console.warn('Hand tracking unavailable:', err.message);
+        useMouseFallback = true;
+        modeLabel.textContent = 'mouse mode (webcam unavailable)';
+        trackingStatus.textContent = 'mouse mode';
+      }
+
+      startBtn.textContent = 'START';
+      startBtn.disabled = false;
+      loop();
+    }
+
+    // --- Hand detection ---
+    // Fingertip landmark indices: thumb=4, index=8, middle=12, ring=16, pinky=20
+    const TIP_INDICES = [8, 12]; // track index and middle finger
+
+    function detectHands() {
+      if (useMouseFallback) {
+        const vx = mouseX - prevMouseX;
+        const vy = mouseY - prevMouseY;
+        fingerTips = [{ x: mouseX, y: mouseY, vx, vy }];
+        const speed = Math.sqrt(vx * vx + vy * vy);
+        if (speed > 2) {
+          fingerTrailPoints.push({ x: mouseX, y: mouseY, life: 1 });
+        }
+        return;
+      }
+
+      if (!handLandmarker) return;
+      if (video.readyState < 2) return;
+      if (video.currentTime === lastVideoTime) return;
+      lastVideoTime = video.currentTime;
+
+      const results = handLandmarker.detectForVideo(video, performance.now());
+      fingerTips = [];
+
+      if (results.landmarks) {
+        for (const hand of results.landmarks) {
+          for (const tipIdx of TIP_INDICES) {
+            const lm = hand[tipIdx];
+            const x = (1 - lm.x) * W;
+            const y = lm.y * H;
+
+            // Find previous position for this finger (approximate by proximity)
+            let vx = 0, vy = 0;
+            const prev = fingerTips._prev || [];
+            let closest = null, closestDist = Infinity;
+            for (const p of prev) {
+              const d = Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2);
+              if (d < closestDist) { closestDist = d; closest = p; }
+            }
+            if (closest) {
+              vx = x - closest.x;
+              vy = y - closest.y;
+            }
+
+            fingerTips.push({ x, y, vx, vy });
+
+            const speed = Math.sqrt(vx * vx + vy * vy);
+            if (speed > 3) {
+              fingerTrailPoints.push({ x, y, life: 1 });
+            }
+          }
+        }
+      }
+
+      // Store for next frame velocity calc
+      fingerTips._prev = fingerTips.map(f => ({ x: f.x, y: f.y }));
+
+      if (fingerTips.length > 0) {
+        trackingStatus.textContent = 'tracking';
+        trackingStatus.style.opacity = '0.3';
+      } else {
+        trackingStatus.textContent = 'show your hand';
+        trackingStatus.style.opacity = '0.6';
+      }
+    }
+
+    // --- Fruit spawning ---
+    function spawnFruit() {
+      const type = FRUITS[Math.floor(Math.random() * FRUITS.length)];
+      const x = 80 + Math.random() * (W - 160);
+      const launchVy = -(8 + Math.random() * 4 + difficultyLevel * 0.5);
+      const launchVx = (Math.random() - 0.5) * 4;
+
+      fruits.push({
+        x, y: H + 40,
+        r: 32 + Math.random() * 12,
+        vx: launchVx,
+        vy: launchVy,
+        gravity: 0.12 + difficultyLevel * 0.005,
+        type,
+        alive: true,
+        sliced: false,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.08,
+      });
+    }
+
+    // --- Slice detection ---
+    function checkSlice() {
+      if (state !== 'playing') return;
+
+      for (const finger of fingerTips) {
+        const speed = Math.sqrt(finger.vx ** 2 + finger.vy ** 2);
+        if (speed < 5) continue; // must be swiping fast enough
+
+        for (const fruit of fruits) {
+          if (!fruit.alive || fruit.sliced) continue;
+
+          const dx = finger.x - fruit.x;
+          const dy = finger.y - fruit.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < fruit.r + 20) {
+            fruit.sliced = true;
+            fruit.alive = false;
+            score++;
+            combo++;
+            comboTimer = 60;
+
+            // Juice particles
+            splashParticles(fruit.x, fruit.y, fruit.type.splashColor, 20);
+
+            // Slice halves
+            spawnHalf(fruit, -1);
+            spawnHalf(fruit, 1);
+
+            let points = 1;
+            if (combo >= 3) points = combo;
+
+            if (combo >= 3) {
+              addFloatingText(fruit.x, fruit.y - 30, `${combo}x COMBO!`, '#FECA57', 28);
+              comboDisplay.textContent = `${combo}x COMBO`;
+              comboDisplay.style.opacity = '1';
+              comboDisplay.style.color = '#FECA57';
+            } else {
+              addFloatingText(fruit.x, fruit.y - 15, `+${points}`, fruit.type.splashColor, 22);
+            }
+          }
+        }
+      }
+    }
+
+    function spawnHalf(fruit, dir) {
+      particles.push({
+        x: fruit.x, y: fruit.y,
+        vx: dir * (2 + Math.random() * 3),
+        vy: -3 - Math.random() * 2,
+        r: fruit.r * 0.8,
+        life: 1,
+        type: 'half',
+        emoji: fruit.type.emoji,
+        rotation: fruit.rotation,
+        rotSpeed: dir * 0.15,
+        gravity: 0.15,
+      });
+    }
+
+    function splashParticles(x, y, color, count = 15) {
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+        const speed = 3 + Math.random() * 6;
+        particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 2,
+          r: 2 + Math.random() * 5,
+          life: 1,
+          type: 'juice',
+          color,
+          gravity: 0.1,
+        });
+      }
+    }
+
+    function addFloatingText(x, y, text, color, size = 20) {
+      floatingTexts.push({ x, y, text, color, size, life: 1, vy: -2.5 });
+    }
+
+    // --- Game ---
+    startBtn.addEventListener('click', () => {
+      state = 'playing';
+      score = 0;
+      misses = 0;
+      fruits = [];
+      particles = [];
+      floatingTexts = [];
+      fingerTrailPoints = [];
+      combo = 0;
+      comboTimer = 0;
+      spawnTimer = 0;
+      spawnInterval = 70;
+      difficultyLevel = 0;
+      overlay.classList.add('hidden');
+    });
+
+    function updateDifficulty() {
+      difficultyLevel = Math.floor(score / 8);
+      spawnInterval = Math.max(30, 70 - difficultyLevel * 4);
+    }
+
+    function update() {
+      frameCount++;
+
+      if (state !== 'playing') return;
+
+      // Combo decay
+      comboTimer--;
+      if (comboTimer <= 0) {
+        combo = 0;
+        comboDisplay.style.opacity = '0';
+      }
+
+      // Spawn
+      spawnTimer++;
+      if (spawnTimer >= spawnInterval) {
+        spawnFruit();
+        if (score >= 15 && Math.random() > 0.5) spawnFruit();
+        if (score >= 30 && Math.random() > 0.6) spawnFruit();
+        spawnTimer = 0;
+        updateDifficulty();
+      }
+
+      // Update fruits
+      for (const f of fruits) {
+        if (!f.alive) continue;
+        f.x += f.vx;
+        f.y += f.vy;
+        f.vy += f.gravity;
+        f.rotation += f.rotSpeed;
+
+        // Fell off screen without being sliced
+        if (f.y > H + 60 && !f.sliced) {
+          f.alive = false;
+          misses++;
+          addFloatingText(f.x, H - 40, 'MISS', '#FF6B6B', 20);
+          combo = 0;
+          comboTimer = 0;
+          comboDisplay.style.opacity = '0';
+          if (misses >= maxMisses) {
+            state = 'gameover';
+            overlay.classList.remove('hidden');
+            overlay.querySelector('h1').textContent = 'GAME OVER';
+            overlay.querySelector('p').textContent = `score: ${score}`;
+            startBtn.textContent = 'PLAY AGAIN';
+          }
+        }
+      }
+      fruits = fruits.filter(f => f.alive);
+
+      // Check slicing
+      checkSlice();
+
+      // Update particles
+      particles = particles.filter(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += (p.gravity || 0.1);
+        p.vx *= 0.98;
+        p.life -= (p.type === 'half' ? 0.015 : 0.025);
+        if (p.rotation !== undefined) p.rotation += (p.rotSpeed || 0);
+        return p.life > 0;
+      });
+
+      // Update trail
+      fingerTrailPoints = fingerTrailPoints.filter(p => {
+        p.life -= 0.06;
+        return p.life > 0;
+      });
+
+      // Update floating texts
+      floatingTexts = floatingTexts.filter(t => {
+        t.y += t.vy;
+        t.vy *= 0.95;
+        t.life -= 0.02;
+        return t.life > 0;
+      });
+    }
+
+    // --- Drawing ---
+    function drawBackground() {
+      // Dark gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#1a1a2e');
+      grad.addColorStop(0.5, '#16213e');
+      grad.addColorStop(1, '#0f3460');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      // Subtle radial light
+      const rg = ctx.createRadialGradient(W / 2, H * 0.3, 50, W / 2, H * 0.3, W * 0.6);
+      rg.addColorStop(0, 'rgba(225,112,85,0.06)');
+      rg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = rg;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    function drawWebcam() {
+      if (!useMouseFallback && video.readyState >= 2) {
+        ctx.save();
+        ctx.globalAlpha = 0.1;
+        ctx.translate(W, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, W, H);
+        ctx.restore();
+      }
+    }
+
+    function drawSliceTrail() {
+      if (fingerTrailPoints.length < 2) return;
+
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      for (let i = 1; i < fingerTrailPoints.length; i++) {
+        const p0 = fingerTrailPoints[i - 1];
+        const p1 = fingerTrailPoints[i];
+
+        ctx.globalAlpha = p1.life * 0.8;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3 + p1.life * 4;
+        ctx.shadowColor = '#ffeaa7';
+        ctx.shadowBlur = 15 * p1.life;
+
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.stroke();
+      }
+
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
+
+    function drawFruit(f) {
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.rotation);
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.beginPath();
+      ctx.ellipse(3, 5, f.r + 4, f.r * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Fruit circle background
+      const fruitGrad = ctx.createRadialGradient(-f.r * 0.2, -f.r * 0.2, f.r * 0.1, 0, 0, f.r);
+      fruitGrad.addColorStop(0, lighten(f.type.color, 30));
+      fruitGrad.addColorStop(1, f.type.color);
+      ctx.fillStyle = fruitGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, f.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Emoji
+      ctx.font = `${f.r * 1.3}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(f.type.emoji, 0, 2);
+
+      ctx.restore();
+    }
+
+    function drawFingerDots() {
+      for (const f of fingerTips) {
+        const speed = Math.sqrt(f.vx ** 2 + f.vy ** 2);
+        const alpha = Math.min(1, speed / 10) * 0.6 + 0.2;
+
+        // Glow
+        ctx.fillStyle = `rgba(255,255,255,${alpha * 0.15})`;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Dot
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      drawBackground();
+      drawWebcam();
+
+      if (state === 'menu') return;
+
+      drawSliceTrail();
+      drawFingerDots();
+
+      // Draw fruits
+      for (const f of fruits) {
+        if (f.alive) drawFruit(f);
+      }
+
+      // Draw particles
+      for (const p of particles) {
+        ctx.globalAlpha = p.life;
+        if (p.type === 'half') {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rotation || 0);
+          ctx.beginPath();
+          ctx.rect(-p.r, -p.r, p.r * 2, p.r * 2);
+          ctx.clip();
+          ctx.font = `${p.r * 1.3}px serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(p.emoji, 0, 2);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // Floating texts
+      for (const t of floatingTexts) {
+        ctx.globalAlpha = t.life;
+        ctx.fillStyle = t.color;
+        ctx.font = `bold ${t.size + (1 - t.life) * 8}px 'Baloo 2', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 8;
+        ctx.fillText(t.text, t.x, t.y);
+        ctx.shadowBlur = 0;
+      }
+      ctx.globalAlpha = 1;
+
+      // HUD
+      scoreDisplay.textContent = score;
+      let missStr = '';
+      for (let i = 0; i < maxMisses; i++) missStr += i < (maxMisses - misses) ? '❤️ ' : '🖤 ';
+      missDisplay.textContent = missStr.trim();
+    }
+
+    // --- Helpers ---
+    function lighten(hex, amount) {
+      const num = parseInt(hex.slice(1), 16);
+      const r = Math.min(255, (num >> 16) + amount);
+      const g = Math.min(255, ((num >> 8) & 0xFF) + amount);
+      const b = Math.min(255, (num & 0xFF) + amount);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // --- Loop ---
+    function loop() {
+      detectHands();
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    init();
+  </script>
+</body>
+</html>
