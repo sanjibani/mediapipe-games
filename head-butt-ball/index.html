@@ -7,100 +7,124 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #0a0a0a;
+      background: #1a8fc4;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      color: #e0e0e0;
+      font-family: 'Baloo 2', 'Nunito', 'Segoe UI', system-ui, sans-serif;
+      color: #fff;
       overflow: hidden;
     }
     #container {
       position: relative;
-      width: 640px;
-      height: 480px;
+      width: 100vw;
+      height: 100vh;
+      max-width: 1280px;
+      max-height: 800px;
     }
     #webcam {
       position: absolute;
       top: 0; left: 0;
-      width: 640px; height: 480px;
+      width: 100%; height: 100%;
       transform: scaleX(-1);
-      opacity: 0.2;
-      border-radius: 8px;
+      opacity: 0.18;
+      object-fit: cover;
       display: none;
     }
     #gameCanvas {
       position: absolute;
       top: 0; left: 0;
-      width: 640px; height: 480px;
-      border-radius: 8px;
-      background: #111;
+      width: 100%; height: 100%;
     }
     #overlay {
       position: absolute;
       top: 0; left: 0;
-      width: 640px; height: 480px;
+      width: 100%; height: 100%;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      background: rgba(0,0,0,0.75);
+      background: rgba(0,0,0,0.45);
       z-index: 10;
-      border-radius: 8px;
+      backdrop-filter: blur(8px);
     }
     #overlay.hidden { display: none; }
-    #overlay h1 { font-size: 36px; margin-bottom: 6px; font-weight: 300; letter-spacing: 2px; }
-    #overlay p { font-size: 15px; opacity: 0.5; margin-bottom: 4px; }
+    #overlay h1 {
+      font-size: 64px;
+      margin-bottom: 8px;
+      font-weight: 800;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      letter-spacing: 3px;
+    }
+    #overlay p { font-size: 20px; opacity: 0.8; margin-bottom: 4px; }
     #startBtn {
-      margin-top: 18px;
-      padding: 10px 28px;
-      font-size: 16px;
-      background: #fff;
-      color: #111;
+      margin-top: 24px;
+      padding: 16px 48px;
+      font-size: 22px;
+      background: linear-gradient(135deg, #ff6b6b, #ffa502);
+      color: #fff;
       border: none;
-      border-radius: 4px;
+      border-radius: 50px;
       cursor: pointer;
       font-family: inherit;
-      font-weight: 600;
-      letter-spacing: 1px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      box-shadow: 0 6px 25px rgba(255,107,107,0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
     }
-    #startBtn:hover { background: #ddd; }
-    #startBtn:disabled { background: #444; color: #888; cursor: wait; }
+    #startBtn:hover { transform: scale(1.05); box-shadow: 0 8px 30px rgba(255,107,107,0.5); }
+    #startBtn:disabled { background: #666; box-shadow: none; cursor: wait; }
     #hud {
       position: absolute;
-      top: 10px; left: 14px; right: 14px;
+      top: 16px; left: 24px; right: 24px;
       display: flex;
       justify-content: space-between;
-      font-size: 16px;
-      font-weight: 400;
+      align-items: center;
+      font-size: 28px;
+      font-weight: 700;
       z-index: 5;
       pointer-events: none;
-      opacity: 0.7;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
     #trackingStatus {
       position: absolute;
-      bottom: 10px; left: 50%;
+      bottom: 14px; left: 50%;
       transform: translateX(-50%);
-      font-size: 12px;
-      opacity: 0.4;
+      font-size: 13px;
+      opacity: 0.5;
       z-index: 5;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    #comboDisplay {
+      position: absolute;
+      top: 50px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      font-weight: 800;
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.3);
     }
   </style>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="container">
     <video id="webcam" autoplay playsinline></video>
-    <canvas id="gameCanvas" width="640" height="480"></canvas>
+    <canvas id="gameCanvas"></canvas>
     <div id="hud">
       <span id="scoreDisplay">0</span>
-      <span id="livesDisplay">&#9679; &#9679; &#9679;</span>
+      <span id="livesDisplay"></span>
     </div>
+    <div id="comboDisplay"></div>
     <div id="trackingStatus">loading...</div>
     <div id="overlay">
       <h1>HEAD BUTT BALL</h1>
       <p>move your head to butt the falling balls</p>
-      <p id="modeLabel" style="font-size:12px; opacity:0.35"></p>
+      <p id="modeLabel" style="font-size:14px; opacity:0.5"></p>
       <button id="startBtn" disabled>loading...</button>
     </div>
   </div>
@@ -115,8 +139,31 @@
     const livesDisplay = document.getElementById('livesDisplay');
     const trackingStatus = document.getElementById('trackingStatus');
     const modeLabel = document.getElementById('modeLabel');
+    const comboDisplay = document.getElementById('comboDisplay');
 
-    const W = 640, H = 480;
+    // Responsive canvas
+    let W, H;
+    function resize() {
+      const cont = document.getElementById('container');
+      W = cont.clientWidth;
+      H = cont.clientHeight;
+      canvas.width = W;
+      canvas.height = H;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // --- Beach colors ---
+    const SKY_TOP = '#87CEEB';
+    const SKY_MID = '#B0E0E6';
+    const SKY_BOT = '#F0E68C';
+    const SAND = '#F4D793';
+    const WATER = '#40C4AA';
+    const BALL_COLORS = [
+      '#FF6B6B', '#FFA502', '#FF6348', '#FECA57',
+      '#48DBFB', '#FF9FF3', '#54A0FF', '#5F27CD',
+      '#01A3A4', '#F368E0', '#EE5A24', '#6C5CE7',
+    ];
 
     // --- State ---
     let state = 'menu';
@@ -128,18 +175,31 @@
     let useMouseFallback = false;
     let faceLandmarker = null;
     let lastVideoTime = -1;
+    let frameCount = 0;
 
-    // Head hitbox radius — shrinks with difficulty
-    let headRadius = 40;
-
-    // Balls
+    let headRadius = 50;
     let balls = [];
     let spawnTimer = 0;
-    let spawnInterval = 90; // frames between spawns
+    let spawnInterval = 80;
     let difficultyLevel = 0;
-
-    // Particles
     let particles = [];
+    let floatingTexts = [];
+    let combo = 0;
+    let comboTimer = 0;
+
+    // Clouds
+    let clouds = [];
+    for (let i = 0; i < 6; i++) {
+      clouds.push({
+        x: Math.random() * 1400 - 100,
+        y: 20 + Math.random() * 120,
+        w: 80 + Math.random() * 120,
+        speed: 0.15 + Math.random() * 0.3,
+      });
+    }
+
+    // Waves
+    let waveOffset = 0;
 
     // Mouse fallback
     canvas.addEventListener('mousemove', (e) => {
@@ -160,11 +220,9 @@
         const { FaceLandmarker, FilesetResolver } = await import(
           'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs'
         );
-
         const vision = await FilesetResolver.forVisionTasks(
           'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
         );
-
         faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
@@ -180,7 +238,7 @@
         startBtn.textContent = 'starting webcam...';
 
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: W, height: H, facingMode: 'user' }
+          video: { width: 1280, height: 720, facingMode: 'user' }
         });
         video.srcObject = stream;
         await new Promise((resolve, reject) => {
@@ -217,15 +275,13 @@
 
       if (results.faceLandmarks && results.faceLandmarks.length > 0) {
         const lm = results.faceLandmarks[0];
-        // Landmark 10 = forehead center (top of head area)
-        // Landmark 152 = chin
-        // Use the top of the forehead for "headbutt" position
         headX = (1 - lm[10].x) * W;
         headY = lm[10].y * H;
         headDetected = true;
         trackingStatus.textContent = 'tracking';
         trackingStatus.style.opacity = '0.3';
       } else {
+        handDetected = false;
         headDetected = false;
         if (state === 'playing') {
           trackingStatus.textContent = 'face lost!';
@@ -236,52 +292,76 @@
 
     // --- Ball spawning ---
     function spawnBall() {
-      const x = 30 + Math.random() * (W - 60);
+      const x = 40 + Math.random() * (W - 80);
       let vx = 0;
-      let vy = 1.5 + difficultyLevel * 0.3;
+      let vy = 2 + difficultyLevel * 0.35;
+      const color = BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)];
+      const r = 16 + Math.random() * 8;
 
-      // After score 5, start adding angled balls
-      if (score >= 5 && Math.random() > 0.5) {
-        vx = (Math.random() - 0.5) * 2;
-      }
-      // After score 15, more aggressive angles
-      if (score >= 15 && Math.random() > 0.4) {
-        vx = (Math.random() - 0.5) * 3.5;
-      }
+      if (score >= 5 && Math.random() > 0.5) vx = (Math.random() - 0.5) * 2.5;
+      if (score >= 15 && Math.random() > 0.4) vx = (Math.random() - 0.5) * 4;
 
       balls.push({
-        x, y: -15,
-        r: 12,
-        vx, vy,
+        x, y: -r * 2,
+        r, vx, vy,
+        color,
         alive: true,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.15,
+        squash: 1,
+        wobble: Math.random() * Math.PI * 2,
       });
     }
 
     // --- Particles ---
-    function burstParticles(x, y, count = 10) {
+    function burstParticles(x, y, color, count = 18) {
       for (let i = 0; i < count; i++) {
-        const angle = (Math.PI * 2 * i) / count;
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.3;
+        const speed = 3 + Math.random() * 5;
         particles.push({
           x, y,
-          vx: Math.cos(angle) * (2 + Math.random() * 3),
-          vy: Math.sin(angle) * (2 + Math.random() * 3) - 2,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 3,
           life: 1,
-          r: 1.5 + Math.random() * 2,
+          r: 2 + Math.random() * 4,
+          color,
+          type: 'burst',
+        });
+      }
+      // Confetti
+      for (let i = 0; i < 8; i++) {
+        particles.push({
+          x: x + (Math.random() - 0.5) * 30,
+          y: y + (Math.random() - 0.5) * 30,
+          vx: (Math.random() - 0.5) * 6,
+          vy: -2 - Math.random() * 5,
+          life: 1,
+          r: 3 + Math.random() * 3,
+          color: BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)],
+          type: 'confetti',
+          rot: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.3,
         });
       }
     }
 
     function missParticles(x, y) {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 8; i++) {
         particles.push({
-          x, y,
-          vx: (Math.random() - 0.5) * 2,
-          vy: -Math.random() * 2,
-          life: 0.6,
-          r: 1,
-          miss: true,
+          x: x + (Math.random() - 0.5) * 20,
+          y,
+          vx: (Math.random() - 0.5) * 3,
+          vy: -1 - Math.random() * 3,
+          life: 0.8,
+          r: 2,
+          color: '#FF6B6B',
+          type: 'miss',
         });
       }
+    }
+
+    function addFloatingText(x, y, text, color = '#fff') {
+      floatingTexts.push({ x, y, text, color, life: 1, vy: -2 });
     }
 
     // --- Game ---
@@ -291,36 +371,47 @@
       lives = 3;
       balls = [];
       particles = [];
+      floatingTexts = [];
       spawnTimer = 0;
-      spawnInterval = 90;
+      spawnInterval = 80;
       difficultyLevel = 0;
-      headRadius = 40;
+      headRadius = 50;
+      combo = 0;
+      comboTimer = 0;
       overlay.classList.add('hidden');
     });
 
     function updateDifficulty() {
       difficultyLevel = Math.floor(score / 5);
-      // Spawn faster: 90 → min 25 frames
-      spawnInterval = Math.max(25, 90 - difficultyLevel * 8);
-      // Head hitbox shrinks: 40 → min 22
-      headRadius = Math.max(22, 40 - difficultyLevel * 2);
+      spawnInterval = Math.max(22, 80 - difficultyLevel * 7);
+      headRadius = Math.max(28, 50 - difficultyLevel * 2.5);
     }
 
     function update() {
+      frameCount++;
+      waveOffset += 0.02;
+
+      // Update clouds
+      for (const c of clouds) {
+        c.x += c.speed;
+        if (c.x > W + 150) c.x = -c.w - 50;
+      }
+
       if (state !== 'playing') return;
 
-      // Spawn balls
+      // Combo decay
+      comboTimer--;
+      if (comboTimer <= 0) {
+        combo = 0;
+        comboDisplay.style.opacity = '0';
+      }
+
+      // Spawn
       spawnTimer++;
       if (spawnTimer >= spawnInterval) {
         spawnBall();
-        // After score 10, occasionally spawn two at once
-        if (score >= 10 && Math.random() > 0.6) {
-          spawnBall();
-        }
-        // After score 25, sometimes three
-        if (score >= 25 && Math.random() > 0.7) {
-          spawnBall();
-        }
+        if (score >= 10 && Math.random() > 0.6) spawnBall();
+        if (score >= 25 && Math.random() > 0.7) spawnBall();
         spawnTimer = 0;
       }
 
@@ -330,12 +421,18 @@
 
         b.x += b.vx;
         b.y += b.vy;
+        b.rotation += b.rotSpeed;
+        b.wobble += 0.05;
+        b.x += Math.sin(b.wobble) * 0.3;
 
-        // Bounce off side walls
+        // Squash and stretch based on velocity
+        const speed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+        b.squash = 1 + speed * 0.02;
+
         if (b.x - b.r < 0) { b.x = b.r; b.vx *= -1; }
         if (b.x + b.r > W) { b.x = W - b.r; b.vx *= -1; }
 
-        // Check headbutt collision
+        // Headbutt collision
         if (headDetected) {
           const dx = b.x - headX;
           const dy = b.y - headY;
@@ -343,120 +440,311 @@
           if (dist < headRadius + b.r) {
             b.alive = false;
             score++;
+            combo++;
+            comboTimer = 90; // 1.5 seconds at 60fps
+
+            let points = 1;
+            if (combo >= 3) points = combo;
+
             updateDifficulty();
-            burstParticles(b.x, b.y);
+            burstParticles(b.x, b.y, b.color);
+
+            if (combo >= 3) {
+              addFloatingText(b.x, b.y - 20, `${combo}x COMBO!`, '#FECA57');
+              comboDisplay.textContent = `${combo}x COMBO`;
+              comboDisplay.style.opacity = '1';
+              comboDisplay.style.color = '#FECA57';
+            } else {
+              addFloatingText(b.x, b.y - 10, `+${points}`, b.color);
+            }
           }
         }
 
-        // Ball fell past bottom
+        // Miss
         if (b.y - b.r > H) {
           b.alive = false;
           lives--;
+          combo = 0;
+          comboTimer = 0;
+          comboDisplay.style.opacity = '0';
           missParticles(b.x, H - 10);
+          addFloatingText(b.x, H - 40, 'MISS', '#FF6B6B');
           if (lives <= 0) {
             state = 'gameover';
             overlay.classList.remove('hidden');
             overlay.querySelector('h1').textContent = 'GAME OVER';
             overlay.querySelector('p').textContent = `score: ${score}`;
-            startBtn.textContent = 'RETRY';
+            startBtn.textContent = 'PLAY AGAIN';
           }
         }
       }
 
-      // Remove dead balls
       balls = balls.filter(b => b.alive);
 
       // Update particles
       particles = particles.filter(p => {
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.08; // gravity on particles
-        p.life -= 0.025;
+        p.vy += 0.12;
+        p.vx *= 0.98;
+        p.life -= 0.02;
+        if (p.rot !== undefined) p.rot += p.rotSpeed;
         return p.life > 0;
       });
+
+      // Update floating texts
+      floatingTexts = floatingTexts.filter(t => {
+        t.y += t.vy;
+        t.vy *= 0.96;
+        t.life -= 0.02;
+        return t.life > 0;
+      });
+    }
+
+    // --- Drawing ---
+    function drawBackground() {
+      // Sky gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, H * 0.7);
+      skyGrad.addColorStop(0, SKY_TOP);
+      skyGrad.addColorStop(0.6, SKY_MID);
+      skyGrad.addColorStop(1, SKY_BOT);
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, W, H * 0.7);
+
+      // Sun
+      const sunX = W * 0.82;
+      const sunY = H * 0.15;
+      const sunGrad = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 80);
+      sunGrad.addColorStop(0, 'rgba(255,235,150,1)');
+      sunGrad.addColorStop(0.3, 'rgba(255,200,50,0.6)');
+      sunGrad.addColorStop(1, 'rgba(255,200,50,0)');
+      ctx.fillStyle = sunGrad;
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, 80, 0, Math.PI * 2);
+      ctx.fill();
+      // Sun core
+      ctx.fillStyle = '#FFEAA7';
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, 28, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Clouds
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      for (const c of clouds) {
+        drawCloud(c.x, c.y, c.w);
+      }
+
+      // Water
+      const waterY = H * 0.62;
+      const waterGrad = ctx.createLinearGradient(0, waterY, 0, H * 0.78);
+      waterGrad.addColorStop(0, '#48DBFB');
+      waterGrad.addColorStop(0.5, '#40C4AA');
+      waterGrad.addColorStop(1, '#0ABDE3');
+      ctx.fillStyle = waterGrad;
+      ctx.fillRect(0, waterY, W, H * 0.16);
+
+      // Waves
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2;
+      for (let row = 0; row < 3; row++) {
+        ctx.beginPath();
+        const wy = waterY + 8 + row * 14;
+        for (let x = 0; x < W; x += 4) {
+          const y = wy + Math.sin((x * 0.02) + waveOffset + row * 1.5) * 4;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      // Sand
+      const sandY = H * 0.75;
+      const sandGrad = ctx.createLinearGradient(0, sandY, 0, H);
+      sandGrad.addColorStop(0, '#F4D793');
+      sandGrad.addColorStop(0.3, '#E8C96E');
+      sandGrad.addColorStop(1, '#D4A843');
+      ctx.fillStyle = sandGrad;
+      ctx.fillRect(0, sandY, W, H - sandY);
+
+      // Sand texture dots
+      ctx.fillStyle = 'rgba(0,0,0,0.03)';
+      for (let i = 0; i < 60; i++) {
+        const sx = (i * 137.5 + frameCount * 0.01) % W;
+        const sy = sandY + 5 + ((i * 73) % (H - sandY - 10));
+        ctx.beginPath();
+        ctx.arc(sx, sy, 1 + (i % 3), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Beach shore line
+      ctx.strokeStyle = 'rgba(72,219,251,0.3)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x = 0; x < W; x += 4) {
+        const y = sandY + Math.sin((x * 0.015) + waveOffset * 1.3) * 5 - 2;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    function drawCloud(x, y, w) {
+      const h = w * 0.4;
+      ctx.beginPath();
+      ctx.arc(x + w * 0.3, y + h * 0.5, h * 0.5, 0, Math.PI * 2);
+      ctx.arc(x + w * 0.5, y + h * 0.25, h * 0.6, 0, Math.PI * 2);
+      ctx.arc(x + w * 0.7, y + h * 0.45, h * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawBall(b) {
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.rotation);
+      ctx.scale(1 / b.squash, b.squash);
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.1)';
+      ctx.beginPath();
+      ctx.ellipse(3, 3, b.r + 2, b.r, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ball body
+      const ballGrad = ctx.createRadialGradient(-b.r * 0.3, -b.r * 0.3, b.r * 0.1, 0, 0, b.r);
+      ballGrad.addColorStop(0, lightenColor(b.color, 40));
+      ballGrad.addColorStop(0.7, b.color);
+      ballGrad.addColorStop(1, darkenColor(b.color, 30));
+      ctx.fillStyle = ballGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, b.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(-b.r * 0.25, -b.r * 0.3, b.r * 0.35, b.r * 0.2, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Panel lines (beach ball look)
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 3; i++) {
+        const a = (Math.PI / 3) * i;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * b.r, Math.sin(a) * b.r);
+        ctx.lineTo(Math.cos(a + Math.PI) * b.r, Math.sin(a + Math.PI) * b.r);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawHead() {
+      if (!headDetected) return;
+
+      // Outer glow ring
+      const pulse = Math.sin(frameCount * 0.08) * 0.15 + 0.85;
+      ctx.strokeStyle = `rgba(255,255,255,${0.35 * pulse})`;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.arc(headX, headY, headRadius + 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Inner circle
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Radial fill
+      const headGrad = ctx.createRadialGradient(headX, headY, 0, headX, headY, headRadius);
+      headGrad.addColorStop(0, 'rgba(255,255,255,0.12)');
+      headGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = headGrad;
+      ctx.beginPath();
+      ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Center dot
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.beginPath();
+      ctx.arc(headX, headY, 4, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     function draw() {
       ctx.clearRect(0, 0, W, H);
-
-      // Subtle grid
-      ctx.strokeStyle = 'rgba(255,255,255,0.02)';
-      ctx.lineWidth = 1;
-      for (let y = 0; y < H; y += 40) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-      }
+      drawBackground();
 
       if (state === 'menu') return;
 
-      // Draw head hitbox
-      if (headDetected) {
-        // Outer ring
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Crosshair
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(headX - headRadius * 0.5, headY);
-        ctx.lineTo(headX + headRadius * 0.5, headY);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(headX, headY - headRadius * 0.5);
-        ctx.lineTo(headX, headY + headRadius * 0.5);
-        ctx.stroke();
-
-        // Center dot
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.beginPath();
-        ctx.arc(headX, headY, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      drawHead();
 
       // Draw balls
       for (const b of balls) {
-        if (!b.alive) continue;
-
-        // Ball body
-        ctx.fillStyle = '#e0e0e0';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Inner circle detail
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r * 0.6, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Drop shadow
-        ctx.fillStyle = 'rgba(255,255,255,0.06)';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y + 2, b.r + 4, 0, Math.PI * 2);
-        ctx.fill();
+        if (b.alive) drawBall(b);
       }
 
       // Draw particles
       for (const p of particles) {
         ctx.globalAlpha = p.life;
-        ctx.fillStyle = p.miss ? 'rgba(255,80,80,0.6)' : '#fff';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
+        if (p.type === 'confetti') {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.r, -p.r * 0.4, p.r * 2, p.r * 0.8);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // Draw floating texts
+      for (const t of floatingTexts) {
+        ctx.globalAlpha = t.life;
+        ctx.fillStyle = t.color;
+        ctx.font = `bold ${18 + (1 - t.life) * 10}px 'Baloo 2', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.4)';
+        ctx.shadowBlur = 6;
+        ctx.fillText(t.text, t.x, t.y);
+        ctx.shadowBlur = 0;
       }
       ctx.globalAlpha = 1;
 
       // HUD
       scoreDisplay.textContent = score;
       let livesStr = '';
-      for (let i = 0; i < 3; i++) livesStr += i < lives ? '\u25CF ' : '\u25CB ';
+      for (let i = 0; i < 3; i++) livesStr += i < lives ? '\u2764\uFE0F ' : '\u{1F5A4} ';
       livesDisplay.textContent = livesStr.trim();
     }
 
+    // --- Helpers ---
+    function lightenColor(hex, amount) {
+      const num = parseInt(hex.slice(1), 16);
+      const r = Math.min(255, (num >> 16) + amount);
+      const g = Math.min(255, ((num >> 8) & 0xFF) + amount);
+      const b = Math.min(255, (num & 0xFF) + amount);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function darkenColor(hex, amount) {
+      const num = parseInt(hex.slice(1), 16);
+      const r = Math.max(0, (num >> 16) - amount);
+      const g = Math.max(0, ((num >> 8) & 0xFF) - amount);
+      const b = Math.max(0, (num & 0xFF) - amount);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // --- Loop ---
     function loop() {
       detectFace();
       update();
