@@ -7,7 +7,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #1a8fc4;
+      background: #0a0a0a;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -28,14 +28,15 @@
       top: 0; left: 0;
       width: 100%; height: 100%;
       transform: scaleX(-1);
-      opacity: 0.18;
       object-fit: cover;
       display: none;
+      z-index: 0;
     }
     #gameCanvas {
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
+      z-index: 1;
     }
     #overlay {
       position: absolute;
@@ -246,8 +247,7 @@
           video.onerror = reject;
         });
         await video.play();
-        video.style.display = 'block';
-
+        // Keep video hidden — we draw it on canvas instead
         useMouseFallback = false;
         modeLabel.textContent = 'face tracking';
         trackingStatus.textContent = 'face tracking ready';
@@ -281,7 +281,6 @@
         trackingStatus.textContent = 'tracking';
         trackingStatus.style.opacity = '0.3';
       } else {
-        handDetected = false;
         headDetected = false;
         if (state === 'playing') {
           trackingStatus.textContent = 'face lost!';
@@ -678,6 +677,16 @@
     function draw() {
       ctx.clearRect(0, 0, W, H);
       drawBackground();
+
+      // Draw webcam feed onto canvas (subtle overlay, not a separate element)
+      if (!useMouseFallback && video.readyState >= 2) {
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.translate(W, 0);
+        ctx.scale(-1, 1); // mirror
+        ctx.drawImage(video, 0, 0, W, H);
+        ctx.restore();
+      }
 
       if (state === 'menu') return;
 
