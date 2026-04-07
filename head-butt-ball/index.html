@@ -293,12 +293,12 @@
     function spawnBall() {
       const x = 40 + Math.random() * (W - 80);
       let vx = 0;
-      let vy = 2 + difficultyLevel * 0.35;
+      let vy = 1.5 + difficultyLevel * 0.2;
       const color = BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)];
-      const r = 16 + Math.random() * 8;
+      const r = 28 + Math.random() * 12;
 
-      if (score >= 5 && Math.random() > 0.5) vx = (Math.random() - 0.5) * 2.5;
-      if (score >= 15 && Math.random() > 0.4) vx = (Math.random() - 0.5) * 4;
+      if (score >= 10 && Math.random() > 0.5) vx = (Math.random() - 0.5) * 2;
+      if (score >= 25 && Math.random() > 0.4) vx = (Math.random() - 0.5) * 3;
 
       balls.push({
         x, y: -r * 2,
@@ -381,9 +381,9 @@
     });
 
     function updateDifficulty() {
-      difficultyLevel = Math.floor(score / 5);
-      spawnInterval = Math.max(22, 80 - difficultyLevel * 7);
-      headRadius = Math.max(28, 50 - difficultyLevel * 2.5);
+      difficultyLevel = Math.floor(score / 10);  // level up every 10 points (was 5)
+      spawnInterval = Math.max(35, 90 - difficultyLevel * 5);  // slower ramp, higher floor
+      headRadius = Math.max(30, 50 - difficultyLevel * 1.5);   // shrinks slower
     }
 
     function update() {
@@ -409,8 +409,8 @@
       spawnTimer++;
       if (spawnTimer >= spawnInterval) {
         spawnBall();
-        if (score >= 10 && Math.random() > 0.6) spawnBall();
-        if (score >= 25 && Math.random() > 0.7) spawnBall();
+        if (score >= 20 && Math.random() > 0.65) spawnBall();
+        if (score >= 40 && Math.random() > 0.75) spawnBall();
         spawnTimer = 0;
       }
 
