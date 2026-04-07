@@ -181,21 +181,18 @@
     let handLandmarker = null;
     let lastVideoTime = -1;
 
-    // Finger tracking
-    let fingerTips = []; // [{x, y, prevX, prevY, vx, vy}]
-    let fingerTrailPoints = []; // for drawing the swipe trail
+    // Finger tracking — simple: just current positions, we store prev ourselves
+    let fingerTips = [];    // [{x, y}] current positions
+    let prevFingerTips = []; // previous frame positions for trail + velocity
+    let fingerTrailPoints = [];
 
     // Mouse fallback
-    let mouseX = W / 2, mouseY = H / 2;
-    let prevMouseX = W / 2, prevMouseY = H / 2;
+    let mouseX = -999, mouseY = -999;
     canvas.addEventListener('mousemove', (e) => {
-      if (useMouseFallback) {
-        const rect = canvas.getBoundingClientRect();
-        prevMouseX = mouseX;
-        prevMouseY = mouseY;
-        mouseX = ((e.clientX - rect.left) / rect.width) * W;
-        mouseY = ((e.clientY - rect.top) / rect.height) * H;
-      }
+      if (!useMouseFallback) return;
+      const rect = canvas.getBoundingClientRect();
+      mouseX = ((e.clientX - rect.left) / rect.width) * W;
+      mouseY = ((e.clientY - rect.top) / rect.height) * H;
     });
 
     // --- Init ---
@@ -243,68 +240,46 @@
     }
 
     // --- Hand detection ---
-    // Fingertip landmark indices: thumb=4, index=8, middle=12, ring=16, pinky=20
-    const TIP_INDICES = [8, 12]; // track index and middle finger
+    const TIP_INDICES = [8, 12]; // index + middle fingertip landmarks
 
     function detectHands() {
+      prevFingerTips = fingerTips.slice(); // save previous positions
+
       if (useMouseFallback) {
-        const vx = mouseX - prevMouseX;
-        const vy = mouseY - prevMouseY;
-        fingerTips = [{ x: mouseX, y: mouseY, vx, vy }];
-        const speed = Math.sqrt(vx * vx + vy * vy);
-        if (speed > 1) {
-          fingerTrailPoints.push({ x: mouseX, y: mouseY, life: 1 });
-        }
-        return;
-      }
+        if (mouseX < 0) return; // mouse not yet over canvas
+        fingerTips = [{ x: mouseX, y: mouseY }];
+      } else {
+        if (!handLandmarker || video.readyState < 2) return;
+        if (video.currentTime === lastVideoTime) return;
+        lastVideoTime = video.currentTime;
 
-      if (!handLandmarker) return;
-      if (video.readyState < 2) return;
-      if (video.currentTime === lastVideoTime) return;
-      lastVideoTime = video.currentTime;
+        const results = handLandmarker.detectForVideo(video, performance.now());
+        fingerTips = [];
 
-      const results = handLandmarker.detectForVideo(video, performance.now());
-      fingerTips = [];
-
-      if (results.landmarks) {
-        for (const hand of results.landmarks) {
-          for (const tipIdx of TIP_INDICES) {
-            const lm = hand[tipIdx];
-            const x = (1 - lm.x) * W;
-            const y = lm.y * H;
-
-            // Find previous position for this finger (approximate by proximity)
-            let vx = 0, vy = 0;
-            const prev = fingerTips._prev || [];
-            let closest = null, closestDist = Infinity;
-            for (const p of prev) {
-              const d = Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2);
-              if (d < closestDist) { closestDist = d; closest = p; }
-            }
-            if (closest) {
-              vx = x - closest.x;
-              vy = y - closest.y;
-            }
-
-            fingerTips.push({ x, y, vx, vy });
-
-            const speed = Math.sqrt(vx * vx + vy * vy);
-            if (speed > 1) {
-              fingerTrailPoints.push({ x, y, life: 1 });
+        if (results.landmarks) {
+          for (const hand of results.landmarks) {
+            for (const tipIdx of TIP_INDICES) {
+              const lm = hand[tipIdx];
+              fingerTips.push({
+                x: (1 - lm.x) * W,
+                y: lm.y * H,
+              });
             }
           }
         }
+
+        if (fingerTips.length > 0) {
+          trackingStatus.textContent = 'tracking';
+          trackingStatus.style.opacity = '0.3';
+        } else {
+          trackingStatus.textContent = 'show your hand';
+          trackingStatus.style.opacity = '0.6';
+        }
       }
 
-      // Store for next frame velocity calc
-      fingerTips._prev = fingerTips.map(f => ({ x: f.x, y: f.y }));
-
-      if (fingerTips.length > 0) {
-        trackingStatus.textContent = 'tracking';
-        trackingStatus.style.opacity = '0.3';
-      } else {
-        trackingStatus.textContent = 'show your hand';
-        trackingStatus.style.opacity = '0.6';
+      // Always add trail points for every finger position
+      for (const f of fingerTips) {
+        fingerTrailPoints.push({ x: f.x, y: f.y, life: 1 });
       }
     }
 
@@ -344,21 +319,17 @@
     function checkSlice() {
       if (state !== 'playing') return;
 
-      for (const finger of fingerTips) {
-        const speed = Math.sqrt(finger.vx ** 2 + finger.vy ** 2);
-        if (speed < 2) continue; // very low threshold — just needs some movement
-
-        // Previous position for line segment check
-        const prevX = finger.x - finger.vx;
-        const prevY = finger.y - finger.vy;
+      for (let i = 0; i < fingerTips.length; i++) {
+        const cur = fingerTips[i];
+        const prev = prevFingerTips[i] || cur; // fall back to same point if no prev
 
         for (const fruit of fruits) {
           if (!fruit.alive || fruit.sliced) continue;
 
-          // Check if the finger's PATH (line from prev to current) passes near the fruit
-          const dist = lineCircleDist(prevX, prevY, finger.x, finger.y, fruit.x, fruit.y);
+          // Check the path the finger swept this frame (prev → cur) against the fruit
+          const dist = lineCircleDist(prev.x, prev.y, cur.x, cur.y, fruit.x, fruit.y);
 
-          if (dist < fruit.r + 30) {
+          if (dist < fruit.r + 20) {
             fruit.sliced = true;
             fruit.alive = false;
             score++;
@@ -610,19 +581,15 @@
 
     function drawFingerDots() {
       for (const f of fingerTips) {
-        const speed = Math.sqrt(f.vx ** 2 + f.vy ** 2);
-        const alpha = Math.min(1, speed / 10) * 0.6 + 0.2;
-
         // Glow
-        ctx.fillStyle = `rgba(255,255,255,${alpha * 0.15})`;
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
         ctx.beginPath();
-        ctx.arc(f.x, f.y, 20, 0, Math.PI * 2);
+        ctx.arc(f.x, f.y, 22, 0, Math.PI * 2);
         ctx.fill();
-
         // Dot
-        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.beginPath();
-        ctx.arc(f.x, f.y, 5, 0, Math.PI * 2);
+        ctx.arc(f.x, f.y, 6, 0, Math.PI * 2);
         ctx.fill();
       }
     }
