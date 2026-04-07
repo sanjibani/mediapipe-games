@@ -6,7 +6,8 @@ A progressive series of browser-based games that teach MediaPipe, Canvas, Web Au
 
 | # | Game | What You Learn | Status |
 |---|------|---------------|--------|
-| 1 | Hand Pong | MediaPipe hand tracking basics | 🔨 Building |
+| 1 | [Hand Pong](level-1-hand-pong/) | MediaPipe hand tracking basics | Done |
+| - | [Head Butt Ball](head-butt-ball/) | Face tracking, circle collision, difficulty ramp | Done |
 | 2 | Finger Fruit Slicer | Multiple finger tracking + collision | ⬜ |
 | 3 | Rock Paper Scissors | Gesture classification | ⬜ |
 | 4 | Head-Dodge Falling Objects | Face/body tracking + game loop | ⬜ |
@@ -14,6 +15,8 @@ A progressive series of browser-based games that teach MediaPipe, Canvas, Web Au
 | 6 | Air Drum Kit | Web Audio API + gesture velocity | ⬜ |
 | 7 | 3D Block Stacker | Three.js + hand tracking in 3D | ⬜ |
 | 8 | Webcam Portal | Shaders + webcam texture | ⬜ |
+
+Each game has a `LEARNING.md` with annotated code breakdowns of the core logic.
 
 ## Running Any Game
 
