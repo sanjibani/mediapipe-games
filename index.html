@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediaPipe Games</title>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f0f0f;
+      min-height: 100vh;
+      font-family: 'Baloo 2', 'Segoe UI', system-ui, sans-serif;
+      color: #fff;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 60px 20px 40px;
+      background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #48DBFB, #FF6B6B, #FECA57);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 18px;
+      opacity: 0.5;
+      margin-top: 8px;
+      font-weight: 500;
+    }
+
+    .games-grid {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 24px;
+    }
+
+    .game-card {
+      background: #1a1a1a;
+      border-radius: 16px;
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+      text-decoration: none;
+      color: #fff;
+      display: block;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .game-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+      border-color: rgba(255,255,255,0.12);
+    }
+
+    .card-banner {
+      height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 64px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-body {
+      padding: 20px 24px 24px;
+    }
+    .card-body h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .card-body p {
+      font-size: 14px;
+      opacity: 0.5;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .card-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tag {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .status-done {
+      background: rgba(0, 184, 148, 0.15);
+      color: #00b894;
+    }
+    .status-soon {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.3);
+    }
+    .tag-tech {
+      background: rgba(72, 219, 251, 0.1);
+      color: #48DBFB;
+    }
+
+    .card-coming-soon {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    .card-coming-soon .card-banner {
+      filter: grayscale(1);
+    }
+
+    footer {
+      text-align: center;
+      padding: 30px;
+      font-size: 13px;
+      opacity: 0.3;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="hero">
+    <h1>MEDIAPIPE GAMES</h1>
+    <p>Browser games powered by hand, face & body tracking — no installs, no API keys</p>
+  </div>
+
+  <div class="games-grid">
+
+    <a href="/level-1-hand-pong/" class="game-card">
+      <div class="card-banner" style="background: linear-gradient(135deg, #6c5ce7, #a29bfe);">
+        <span>&#127955;</span>
+      </div>
+      <div class="card-body">
+        <h2>Hand Pong</h2>
+        <p>Control a paddle with your palm. Keep the ball alive as speed ramps up.</p>
+        <div class="card-tags">
+          <span class="tag status-done">PLAYABLE</span>
+          <span class="tag tag-tech">Hand Tracking</span>
+          <span class="tag tag-tech">Canvas 2D</span>
+        </div>
+      </div>
+    </a>
+
+    <a href="/head-butt-ball/" class="game-card">
+      <div class="card-banner" style="background: linear-gradient(135deg, #87CEEB, #F4D793);">
+        <span>&#9917;</span>
+      </div>
+      <div class="card-body">
+        <h2>Head Butt Ball</h2>
+        <p>Headbutt colorful beach balls falling from the sky. Combo hits for bonus points.</p>
+        <div class="card-tags">
+          <span class="tag status-done">PLAYABLE</span>
+          <span class="tag tag-tech">Face Tracking</span>
+          <span class="tag tag-tech">Canvas 2D</span>
+        </div>
+      </div>
+    </a>
+
+    <div class="game-card card-coming-soon">
+      <div class="card-banner" style="background: linear-gradient(135deg, #e17055, #fdcb6e);">
+        <span>&#127819;</span>
+      </div>
+      <div class="card-body">
+        <h2>Finger Fruit Slicer</h2>
+        <p>Swipe your finger through fruits to slice them. Track multiple fingertips.</p>
+        <div class="card-tags">
+          <span class="tag status-soon">COMING SOON</span>
+          <span class="tag tag-tech">Multi-finger</span>
+          <span class="tag tag-tech">Collision</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-card card-coming-soon">
+      <div class="card-banner" style="background: linear-gradient(135deg, #00b894, #55efc4);">
+        <span>&#9994;</span>
+      </div>
+      <div class="card-body">
+        <h2>Rock Paper Scissors</h2>
+        <p>Throw hand gestures against the computer. Real-time gesture classification.</p>
+        <div class="card-tags">
+          <span class="tag status-soon">COMING SOON</span>
+          <span class="tag tag-tech">Gesture Classification</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-card card-coming-soon">
+      <div class="card-banner" style="background: linear-gradient(135deg, #636e72, #b2bec3);">
+        <span>&#128168;</span>
+      </div>
+      <div class="card-body">
+        <h2>Head-Dodge</h2>
+        <p>Dodge falling objects by moving your head. Survive as long as you can.</p>
+        <div class="card-tags">
+          <span class="tag status-soon">COMING SOON</span>
+          <span class="tag tag-tech">Face/Pose Tracking</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-card card-coming-soon">
+      <div class="card-banner" style="background: linear-gradient(135deg, #fd79a8, #e84393);">
+        <span>&#127939;</span>
+      </div>
+      <div class="card-body">
+        <h2>Squat Jumper</h2>
+        <p>Side-scrolling runner. Squat to jump over obstacles with full body tracking.</p>
+        <div class="card-tags">
+          <span class="tag status-soon">COMING SOON</span>
+          <span class="tag tag-tech">Pose (33 landmarks)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-card card-coming-soon">
+      <div class="card-banner" style="background: linear-gradient(135deg, #0984e3, #74b9ff);">
+        <span>&#129345;</span>
+      </div>
+      <div class="card-body">
+        <h2>Air Drum Kit</h2>
+        <p>Play drums in the air. Hit zones trigger sounds based on hand velocity.</p>
+        <div class="card-tags">
+          <span class="tag status-soon">COMING SOON</span>
+          <span class="tag tag-tech">Web Audio</span>
+          <span class="tag tag-tech">Velocity</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-card card-coming-soon">
+      <div class="card-banner" style="background: linear-gradient(135deg, #d63031, #ff7675);">
+        <span>&#129521;</span>
+      </div>
+      <div class="card-body">
+        <h2>3D Block Stacker</h2>
+        <p>Stack blocks in 3D using hand position and pinch depth. Three.js + physics.</p>
+        <div class="card-tags">
+          <span class="tag status-soon">COMING SOON</span>
+          <span class="tag tag-tech">Three.js</span>
+          <span class="tag tag-tech">3D</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-card card-coming-soon">
+      <div class="card-banner" style="background: linear-gradient(135deg, #6c5ce7, #fd79a8);">
+        <span>&#127912;</span>
+      </div>
+      <div class="card-body">
+        <h2>Webcam Portal</h2>
+        <p>Your webcam as a 3D texture. Pinch, swipe, and gesture to warp with shaders.</p>
+        <div class="card-tags">
+          <span class="tag status-soon">COMING SOON</span>
+          <span class="tag tag-tech">Shaders</span>
+          <span class="tag tag-tech">WebGL</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    Built with MediaPipe Vision &middot; No API keys, runs entirely in your browser
+  </footer>
+
+</body>
+</html>
