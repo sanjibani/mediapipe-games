@@ -650,15 +650,20 @@
     }
   }
 
-  // Pinch detection: distance between thumb tip (4) and index tip (8)
+  // Pinch detection with hysteresis to prevent flickering
   function detectPinch(lm) {
     const thumb = lm[4], index = lm[8];
     const dist = Math.sqrt(
       (thumb.x - index.x) ** 2 +
       (thumb.y - index.y) ** 2
     );
-    return dist < 0.05; // normalized distance threshold
+    // Hysteresis: tighter threshold to start, looser to release
+    if (isPinching) return dist < 0.07;
+    return dist < 0.04;
   }
+
+  // Smoothing factor: 0 = frozen, 1 = raw. 0.35 balances responsiveness vs jitter.
+  const SMOOTH = 0.35;
 
   function detectHands() {
     if (mode !== 'finger' || !handLandmarker) return;
@@ -670,9 +675,11 @@
 
     if (results.landmarks && results.landmarks.length > 0) {
       const lm = results.landmarks[0];
-      // Index fingertip = landmark 8, mirror X
-      fingerX = (1 - lm[8].x) * drawCanvas.width;
-      fingerY = lm[8].y * drawCanvas.height;
+      // Index fingertip = landmark 8, mirror X — lerp smooth to reduce jitter
+      const rawX = (1 - lm[8].x) * drawCanvas.width;
+      const rawY = lm[8].y * drawCanvas.height;
+      fingerX = fingerX < 0 ? rawX : fingerX + (rawX - fingerX) * SMOOTH;
+      fingerY = fingerY < 0 ? rawY : fingerY + (rawY - fingerY) * SMOOTH;
 
       const pinching = detectPinch(lm);
 
