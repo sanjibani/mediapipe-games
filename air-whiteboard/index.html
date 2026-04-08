@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Air Whiteboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      font-family: 'Baloo 2', system-ui, sans-serif;
+      color: #fff;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+    }
+
+    /* ---- TOOLBAR ---- */
+    #toolbar {
+      width: 76px;
+      min-width: 76px;
+      background: #16213e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      gap: 4px;
+      border-right: 1px solid rgba(255,255,255,0.07);
+      z-index: 20;
+      overflow-y: auto;
+    }
+
+    .tb-label {
+      font-size: 9px;
+      opacity: 0.35;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin: 8px 0 2px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .tb-btn {
+      width: 50px; height: 50px;
+      border-radius: 12px;
+      border: none;
+      background: transparent;
+      color: #fff;
+      font-size: 22px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column;
+      transition: background 0.15s;
+      position: relative;
+    }
+    .tb-btn span.lbl { font-size: 9px; opacity: 0.5; margin-top: 1px; }
+    .tb-btn:hover { background: rgba(255,255,255,0.08); }
+    .tb-btn.active { background: rgba(108,92,231,0.35); box-shadow: 0 0 0 2px #6c5ce7; }
+    .tb-btn:disabled { opacity: 0.3; cursor: default; }
+
+    .tb-divider {
+      width: 40px; height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 6px 0;
+    }
+
+    /* Color swatches */
+    .color-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+      padding: 0 10px;
+    }
+    .swatch {
+      width: 24px; height: 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.1s, border-color 0.1s;
+    }
+    .swatch:hover { transform: scale(1.15); }
+    .swatch.active { border-color: #fff; }
+
+    /* Custom color picker */
+    #customColor {
+      width: 44px; height: 30px;
+      border-radius: 8px;
+      border: 2px solid rgba(255,255,255,0.15);
+      cursor: pointer;
+      background: transparent;
+      padding: 0;
+    }
+
+    /* Size slider */
+    #sizeSlider {
+      -webkit-appearance: none;
+      width: 52px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.2);
+      outline: none;
+      margin: 4px 0;
+    }
+    #sizeSlider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #6c5ce7;
+      cursor: pointer;
+    }
+
+    /* ---- MAIN AREA ---- */
+    #main {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #webcam {
+      position: absolute;
+      top: 12px; right: 12px;
+      width: 200px; height: 150px;
+      border-radius: 12px;
+      transform: scaleX(-1);
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.1);
+      z-index: 10;
+      display: none;
+    }
+    #webcam.visible { display: block; }
+
+    #drawCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #fff;
+      cursor: crosshair;
+      z-index: 1;
+    }
+
+    #overlayCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* Status bar */
+    #statusBar {
+      position: absolute;
+      bottom: 10px; left: 10px;
+      font-size: 12px;
+      opacity: 0.5;
+      z-index: 15;
+      background: rgba(0,0,0,0.3);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    /* Pinch indicator */
+    #pinchIndicator {
+      position: absolute;
+      top: 10px; left: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 15;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(108,92,231,0.3);
+      border: 1px solid rgba(108,92,231,0.5);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    #pinchIndicator.visible { opacity: 1; }
+
+    /* Overlay menu */
+    #startOverlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(22,33,62,0.92);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 100;
+      backdrop-filter: blur(4px);
+    }
+    #startOverlay h1 { font-size: 52px; font-weight: 800; letter-spacing: 2px;
+      background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    #startOverlay p { font-size: 17px; opacity: 0.6; margin-top: 6px; }
+    #startOverlay .mode-btns { display: flex; gap: 16px; margin-top: 28px; }
+    .mode-btn {
+      padding: 14px 28px;
+      border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.05);
+      color: #fff;
+      font-size: 16px;
+      font-family: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .mode-btn:hover { background: rgba(108,92,231,0.3); border-color: #6c5ce7; }
+    .mode-btn .icon { font-size: 32px; display: block; margin-bottom: 6px; }
+    .mode-btn small { display: block; font-size: 12px; opacity: 0.5; font-weight: 400; margin-top: 2px; }
+    #skipBtn {
+      margin-top: 16px;
+      background: none; border: none;
+      color: rgba(255,255,255,0.3);
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #skipBtn:hover { color: rgba(255,255,255,0.6); }
+
+    /* Text input tool */
+    #textInput {
+      position: absolute;
+      z-index: 50;
+      border: 2px dashed #6c5ce7;
+      background: transparent;
+      color: #000;
+      font-size: 24px;
+      font-family: inherit;
+      outline: none;
+      padding: 4px 8px;
+      min-width: 120px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <div class="tb-label">Tools</div>
+
+  <button class="tb-btn active" id="toolPen" title="Pen">
+    ✏️<span class="lbl">Pen</span>
+  </button>
+  <button class="tb-btn" id="toolHighlight" title="Highlighter">
+    🖊️<span class="lbl">Mark</span>
+  </button>
+  <button class="tb-btn" id="toolEraser" title="Eraser">
+    🧹<span class="lbl">Erase</span>
+  </button>
+  <button class="tb-btn" id="toolLine" title="Line">
+    ╱<span class="lbl">Line</span>
+  </button>
+  <button class="tb-btn" id="toolRect" title="Rectangle">
+    ▭<span class="lbl">Rect</span>
+  </button>
+  <button class="tb-btn" id="toolCircle" title="Circle">
+    ◯<span class="lbl">Circle</span>
+  </button>
+  <button class="tb-btn" id="toolText" title="Text">
+    T<span class="lbl">Text</span>
+  </button>
+
+  <div class="tb-divider"></div>
+  <div class="tb-label">Color</div>
+
+  <div class="color-grid">
+    <div class="swatch active" style="background:#000000" data-color="#000000"></div>
+    <div class="swatch" style="background:#ffffff; border:1px solid #ccc" data-color="#ffffff"></div>
+    <div class="swatch" style="background:#e74c3c" data-color="#e74c3c"></div>
+    <div class="swatch" style="background:#e67e22" data-color="#e67e22"></div>
+    <div class="swatch" style="background:#f1c40f" data-color="#f1c40f"></div>
+    <div class="swatch" style="background:#2ecc71" data-color="#2ecc71"></div>
+    <div class="swatch" style="background:#3498db" data-color="#3498db"></div>
+    <div class="swatch" style="background:#9b59b6" data-color="#9b59b6"></div>
+  </div>
+  <input type="color" id="customColor" value="#000000" title="Custom color">
+
+  <div class="tb-divider"></div>
+  <div class="tb-label">Size</div>
+  <input type="range" id="sizeSlider" min="1" max="40" value="4">
+  <span id="sizeLabel" style="font-size:11px; opacity:0.4">4px</span>
+
+  <div class="tb-divider"></div>
+  <div class="tb-label">Actions</div>
+  <button class="tb-btn" id="btnUndo" title="Undo">↩️<span class="lbl">Undo</span></button>
+  <button class="tb-btn" id="btnClear" title="Clear">🗑️<span class="lbl">Clear</span></button>
+  <button class="tb-btn" id="btnSave" title="Save PNG">💾<span class="lbl">Save</span></button>
+  <button class="tb-btn" id="btnCam" title="Toggle webcam">📷<span class="lbl">Cam</span></button>
+</div>
+
+<!-- MAIN CANVAS AREA -->
+<div id="main">
+  <video id="webcam" autoplay playsinline></video>
+  <canvas id="drawCanvas"></canvas>
+  <canvas id="overlayCanvas"></canvas>
+  <div id="pinchIndicator">✍️ Drawing</div>
+  <div id="statusBar">mouse mode — move mouse to draw</div>
+  <input id="textInput" type="text" placeholder="Type here...">
+
+  <!-- START OVERLAY -->
+  <div id="startOverlay">
+    <h1>AIR WHITEBOARD</h1>
+    <p>Draw with your finger or a colored pen — teach anything, anywhere</p>
+    <div class="mode-btns">
+      <button class="mode-btn" id="modeFingerBtn">
+        <span class="icon">☝️</span>
+        Finger Mode
+        <small>Pinch to draw · Open palm to stop</small>
+      </button>
+      <button class="mode-btn" id="modeMouseBtn">
+        <span class="icon">🖱️</span>
+        Mouse Mode
+        <small>Click & drag to draw</small>
+      </button>
+    </div>
+    <button id="skipBtn">continue without camera →</button>
+  </div>
+</div>
+
+<script type="module">
+  // ---- Elements ----
+  const drawCanvas = document.getElementById('drawCanvas');
+  const overlayCanvas = document.getElementById('overlayCanvas');
+  const dc = drawCanvas.getContext('2d');
+  const oc = overlayCanvas.getContext('2d');
+  const video = document.getElementById('webcam');
+  const statusBar = document.getElementById('statusBar');
+  const pinchIndicator = document.getElementById('pinchIndicator');
+  const textInput = document.getElementById('textInput');
+
+  // ---- Resize ----
+  function resize() {
+    const main = document.getElementById('main');
+    const W = main.clientWidth, H = main.clientHeight;
+    [drawCanvas, overlayCanvas].forEach(c => { c.width = W; c.height = H; });
+    // restore draw canvas white background after resize
+    dc.fillStyle = '#ffffff';
+    dc.fillRect(0, 0, W, H);
+    redrawHistory();
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // ---- State ----
+  let tool = 'pen';
+  let color = '#000000';
+  let size = 4;
+  let isDrawing = false;
+  let startX = 0, startY = 0;
+  let lastX = 0, lastY = 0;
+  let mode = 'mouse'; // 'finger' | 'mouse'
+  let handLandmarker = null;
+  let lastVideoTime = -1;
+  let camVisible = false;
+
+  // Finger cursor position
+  let fingerX = -1, fingerY = -1;
+  let isPinching = false;
+
+  // History for undo
+  let history = [];
+  const MAX_HISTORY = 40;
+
+  // ---- Toolbar wiring ----
+  const toolBtns = {
+    pen: document.getElementById('toolPen'),
+    highlight: document.getElementById('toolHighlight'),
+    eraser: document.getElementById('toolEraser'),
+    line: document.getElementById('toolLine'),
+    rect: document.getElementById('toolRect'),
+    circle: document.getElementById('toolCircle'),
+    text: document.getElementById('toolText'),
+  };
+
+  Object.entries(toolBtns).forEach(([name, btn]) => {
+    btn.addEventListener('click', () => {
+      tool = name;
+      Object.values(toolBtns).forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (name === 'text') {
+        drawCanvas.style.cursor = 'text';
+      } else if (name === 'eraser') {
+        drawCanvas.style.cursor = 'cell';
+      } else {
+        drawCanvas.style.cursor = 'crosshair';
+      }
+    });
+  });
+
+  // Colors
+  document.querySelectorAll('.swatch').forEach(s => {
+    s.addEventListener('click', () => {
+      color = s.dataset.color;
+      document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+      s.classList.add('active');
+      document.getElementById('customColor').value = color;
+    });
+  });
+  document.getElementById('customColor').addEventListener('input', e => {
+    color = e.target.value;
+    document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+  });
+
+  // Size
+  const sizeSlider = document.getElementById('sizeSlider');
+  sizeSlider.addEventListener('input', () => {
+    size = parseInt(sizeSlider.value);
+    document.getElementById('sizeLabel').textContent = size + 'px';
+  });
+
+  // Actions
+  document.getElementById('btnUndo').addEventListener('click', undo);
+  document.getElementById('btnClear').addEventListener('click', clearCanvas);
+  document.getElementById('btnSave').addEventListener('click', saveImage);
+  document.getElementById('btnCam').addEventListener('click', toggleCam);
+
+  // ---- Drawing helpers ----
+  function saveSnapshot() {
+    if (history.length >= MAX_HISTORY) history.shift();
+    history.push(drawCanvas.toDataURL());
+  }
+
+  function undo() {
+    if (history.length === 0) return;
+    const img = new Image();
+    img.src = history.pop();
+    img.onload = () => {
+      dc.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+      dc.fillStyle = '#fff';
+      dc.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+      dc.drawImage(img, 0, 0);
+    };
+  }
+
+  function redrawHistory() {
+    if (history.length === 0) return;
+    const img = new Image();
+    img.src = history[history.length - 1];
+    img.onload = () => dc.drawImage(img, 0, 0);
+  }
+
+  function clearCanvas() {
+    saveSnapshot();
+    dc.fillStyle = '#ffffff';
+    dc.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+  }
+
+  function saveImage() {
+    const a = document.createElement('a');
+    a.download = 'whiteboard.png';
+    a.href = drawCanvas.toDataURL();
+    a.click();
+  }
+
+  function toggleCam() {
+    camVisible = !camVisible;
+    video.classList.toggle('visible', camVisible && mode === 'finger');
+  }
+
+  function setupDraw(ctx, x, y) {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (tool === 'eraser') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.lineWidth = size * 3;
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+    } else if (tool === 'highlight') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = size * 4;
+      ctx.strokeStyle = color;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = size;
+      ctx.strokeStyle = color;
+    }
+  }
+
+  // ---- Mouse drawing ----
+  let mouseDown = false;
+  let shapeStartX = 0, shapeStartY = 0;
+  let shapeSnapshot = null;
+
+  drawCanvas.addEventListener('mousedown', (e) => {
+    if (mode !== 'mouse') return;
+    const { x, y } = getPos(e);
+
+    if (tool === 'text') {
+      placeTextInput(x, y);
+      return;
+    }
+
+    mouseDown = true;
+    saveSnapshot();
+
+    if (['line','rect','circle'].includes(tool)) {
+      shapeStartX = x; shapeStartY = y;
+      shapeSnapshot = drawCanvas.toDataURL();
+    } else {
+      startStroke(dc, x, y);
+    }
+  });
+
+  drawCanvas.addEventListener('mousemove', (e) => {
+    if (!mouseDown || mode !== 'mouse') return;
+    const { x, y } = getPos(e);
+
+    if (['line','rect','circle'].includes(tool)) {
+      // Redraw from snapshot + preview shape on overlay
+      const img = new Image();
+      img.src = shapeSnapshot;
+      img.onload = () => {
+        dc.drawImage(img, 0, 0);
+        drawShape(dc, tool, shapeStartX, shapeStartY, x, y);
+      };
+    } else {
+      continueStroke(dc, x, y);
+    }
+  });
+
+  drawCanvas.addEventListener('mouseup', (e) => {
+    if (!mouseDown || mode !== 'mouse') return;
+    mouseDown = false;
+    const { x, y } = getPos(e);
+    if (['line','rect','circle'].includes(tool)) {
+      drawShape(dc, tool, shapeStartX, shapeStartY, x, y);
+    }
+    dc.beginPath();
+    dc.globalAlpha = 1;
+    dc.globalCompositeOperation = 'source-over';
+  });
+
+  drawCanvas.addEventListener('mouseleave', () => { mouseDown = false; });
+
+  // Click canvas to place text
+  drawCanvas.addEventListener('click', (e) => {
+    if (tool !== 'text' || mode !== 'mouse') return;
+    const { x, y } = getPos(e);
+    placeTextInput(x, y);
+  });
+
+  function getPos(e) {
+    const rect = drawCanvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (drawCanvas.width / rect.width),
+      y: (e.clientY - rect.top) * (drawCanvas.height / rect.height),
+    };
+  }
+
+  function startStroke(ctx, x, y) {
+    setupDraw(ctx, x, y);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    lastX = x; lastY = y;
+  }
+
+  function continueStroke(ctx, x, y) {
+    setupDraw(ctx, x, y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    lastX = x; lastY = y;
+  }
+
+  function drawShape(ctx, type, x1, y1, x2, y2) {
+    setupDraw(ctx, x1, y1);
+    ctx.beginPath();
+    if (type === 'line') {
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    } else if (type === 'rect') {
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    } else if (type === 'circle') {
+      const rx = Math.abs(x2 - x1) / 2;
+      const ry = Math.abs(y2 - y1) / 2;
+      const cx = Math.min(x1, x2) + rx;
+      const cy = Math.min(y1, y2) + ry;
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // ---- Text tool ----
+  function placeTextInput(x, y) {
+    textInput.style.display = 'block';
+    textInput.style.left = x + 'px';
+    textInput.style.top = y + 'px';
+    textInput.style.color = color;
+    textInput.style.fontSize = Math.max(16, size * 4) + 'px';
+    textInput.value = '';
+    textInput.focus();
+  }
+
+  textInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') commitText();
+    if (e.key === 'Escape') { textInput.style.display = 'none'; }
+  });
+  textInput.addEventListener('blur', commitText);
+
+  function commitText() {
+    if (!textInput.value.trim()) { textInput.style.display = 'none'; return; }
+    saveSnapshot();
+    const x = parseInt(textInput.style.left);
+    const y = parseInt(textInput.style.top) + parseInt(textInput.style.fontSize);
+    dc.font = `${textInput.style.fontSize} 'Baloo 2', sans-serif`;
+    dc.fillStyle = color;
+    dc.globalAlpha = 1;
+    dc.globalCompositeOperation = 'source-over';
+    dc.fillText(textInput.value, x, y);
+    textInput.style.display = 'none';
+  }
+
+  // ---- Finger mode ----
+  async function initFingerMode() {
+    statusBar.textContent = 'loading hand model...';
+    try {
+      const { HandLandmarker, FilesetResolver } = await import(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs'
+      );
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
+      );
+      handLandmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+          delegate: 'GPU',
+        },
+        runningMode: 'VIDEO',
+        numHands: 1,
+      });
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 1280, height: 720, facingMode: 'user' }
+      });
+      video.srcObject = stream;
+      await new Promise(r => { video.onloadedmetadata = r; });
+      await video.play();
+
+      if (camVisible) video.classList.add('visible');
+      statusBar.textContent = '☝️ Index finger = cursor  |  Pinch (thumb+index) = draw  |  Open palm = stop';
+    } catch (err) {
+      statusBar.textContent = 'Camera not available — switch to mouse mode';
+      console.warn(err);
+    }
+  }
+
+  // Pinch detection: distance between thumb tip (4) and index tip (8)
+  function detectPinch(lm) {
+    const thumb = lm[4], index = lm[8];
+    const dist = Math.sqrt(
+      (thumb.x - index.x) ** 2 +
+      (thumb.y - index.y) ** 2
+    );
+    return dist < 0.05; // normalized distance threshold
+  }
+
+  function detectHands() {
+    if (mode !== 'finger' || !handLandmarker) return;
+    if (video.readyState < 2) return;
+    if (video.currentTime === lastVideoTime) return;
+    lastVideoTime = video.currentTime;
+
+    const results = handLandmarker.detectForVideo(video, performance.now());
+
+    if (results.landmarks && results.landmarks.length > 0) {
+      const lm = results.landmarks[0];
+      // Index fingertip = landmark 8, mirror X
+      fingerX = (1 - lm[8].x) * drawCanvas.width;
+      fingerY = lm[8].y * drawCanvas.height;
+
+      const pinching = detectPinch(lm);
+
+      if (pinching && !isPinching) {
+        // Pinch started — begin stroke
+        isPinching = true;
+        pinchIndicator.classList.add('visible');
+        if (tool === 'text') {
+          placeTextInput(fingerX, fingerY);
+        } else if (['line','rect','circle'].includes(tool)) {
+          saveSnapshot();
+          shapeStartX = fingerX; shapeStartY = fingerY;
+          shapeSnapshot = drawCanvas.toDataURL();
+        } else {
+          saveSnapshot();
+          startStroke(dc, fingerX, fingerY);
+        }
+      } else if (pinching && isPinching) {
+        // Continue pinch — draw
+        if (['line','rect','circle'].includes(tool)) {
+          const img = new Image();
+          img.src = shapeSnapshot;
+          img.onload = () => {
+            dc.drawImage(img, 0, 0);
+            drawShape(dc, tool, shapeStartX, shapeStartY, fingerX, fingerY);
+          };
+        } else if (tool !== 'text') {
+          continueStroke(dc, fingerX, fingerY);
+        }
+      } else if (!pinching && isPinching) {
+        // Pinch released — end stroke
+        isPinching = false;
+        pinchIndicator.classList.remove('visible');
+        dc.beginPath();
+        dc.globalAlpha = 1;
+        dc.globalCompositeOperation = 'source-over';
+        if (['line','rect','circle'].includes(tool)) {
+          drawShape(dc, tool, shapeStartX, shapeStartY, fingerX, fingerY);
+        }
+      }
+    } else {
+      fingerX = -1; fingerY = -1;
+      if (isPinching) {
+        isPinching = false;
+        pinchIndicator.classList.remove('visible');
+        dc.beginPath();
+      }
+    }
+  }
+
+  // ---- Overlay cursor ----
+  function drawOverlay() {
+    oc.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    if (mode !== 'finger' || fingerX < 0) return;
+
+    // Cursor ring
+    const pinchColor = isPinching ? '#6c5ce7' : 'rgba(0,0,0,0.5)';
+    oc.strokeStyle = pinchColor;
+    oc.lineWidth = 2;
+    oc.beginPath();
+    oc.arc(fingerX, fingerY, isPinching ? 14 : 18, 0, Math.PI * 2);
+    oc.stroke();
+
+    // Center dot
+    oc.fillStyle = isPinching ? '#6c5ce7' : 'rgba(0,0,0,0.4)';
+    oc.beginPath();
+    oc.arc(fingerX, fingerY, 4, 0, Math.PI * 2);
+    oc.fill();
+
+    // Color preview ring
+    oc.strokeStyle = color;
+    oc.lineWidth = 3;
+    oc.beginPath();
+    oc.arc(fingerX, fingerY, isPinching ? 14 : 18, 0, Math.PI * 2);
+    oc.stroke();
+  }
+
+  // ---- Start overlay ----
+  const startOverlay = document.getElementById('startOverlay');
+
+  function hideOverlay() {
+    startOverlay.style.display = 'none';
+  }
+
+  document.getElementById('modeFingerBtn').addEventListener('click', async () => {
+    mode = 'finger';
+    hideOverlay();
+    camVisible = true;
+    video.classList.add('visible');
+    statusBar.textContent = 'loading...';
+    await initFingerMode();
+  });
+
+  document.getElementById('modeMouseBtn').addEventListener('click', () => {
+    mode = 'mouse';
+    hideOverlay();
+    statusBar.textContent = 'mouse mode — click & drag to draw';
+  });
+
+  document.getElementById('skipBtn').addEventListener('click', () => {
+    mode = 'mouse';
+    hideOverlay();
+    statusBar.textContent = 'mouse mode — click & drag to draw';
+  });
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', (e) => {
+    if (e.target === textInput) return;
+    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+    if (e.key === 'p') toolBtns.pen.click();
+    if (e.key === 'h') toolBtns.highlight.click();
+    if (e.key === 'e') toolBtns.eraser.click();
+    if (e.key === 'l') toolBtns.line.click();
+    if (e.key === 'r') toolBtns.rect.click();
+    if (e.key === 'c') toolBtns.circle.click();
+    if (e.key === 't') toolBtns.text.click();
+  });
+
+  // ---- Main loop ----
+  function loop() {
+    detectHands();
+    drawOverlay();
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+</script>
+</body>
+</html>
