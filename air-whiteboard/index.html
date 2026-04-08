@@ -641,11 +641,12 @@
       await new Promise(r => { video.onloadedmetadata = r; });
       await video.play();
 
-      if (camVisible) video.classList.add('visible');
-      statusBar.textContent = '☝️ Index finger = cursor  |  Pinch (thumb+index) = draw  |  Open palm = stop';
+      video.classList.add('visible');
+      statusBar.textContent = '☝️ Point finger = cursor  |  Pinch thumb+index = draw  |  Release = stop';
     } catch (err) {
-      statusBar.textContent = 'Camera not available — switch to mouse mode';
       console.warn(err);
+      mode = 'mouse'; // fall back to mouse if camera fails
+      statusBar.textContent = '⚠️ Camera unavailable — using mouse mode instead';
     }
   }
 
@@ -757,12 +758,20 @@
   }
 
   document.getElementById('modeFingerBtn').addEventListener('click', async () => {
-    mode = 'finger';
+    // Show loading state on the button before hiding overlay
+    const btn = document.getElementById('modeFingerBtn');
+    btn.innerHTML = '<span class="icon">⏳</span>Loading model...<small>please wait</small>';
+    btn.style.opacity = '0.6';
+    btn.disabled = true;
+
+    try {
+      await initFingerMode();
+      mode = 'finger';
+      camVisible = true;
+    } catch (e) {
+      // initFingerMode handles its own errors
+    }
     hideOverlay();
-    camVisible = true;
-    video.classList.add('visible');
-    statusBar.textContent = 'loading...';
-    await initFingerMode();
   });
 
   document.getElementById('modeMouseBtn').addEventListener('click', () => {
