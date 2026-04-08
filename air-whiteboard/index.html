@@ -328,19 +328,6 @@
   const pinchIndicator = document.getElementById('pinchIndicator');
   const textInput = document.getElementById('textInput');
 
-  // ---- Resize ----
-  function resize() {
-    const main = document.getElementById('main');
-    const W = main.clientWidth, H = main.clientHeight;
-    [drawCanvas, overlayCanvas].forEach(c => { c.width = W; c.height = H; });
-    // restore draw canvas white background after resize
-    dc.fillStyle = '#ffffff';
-    dc.fillRect(0, 0, W, H);
-    redrawHistory();
-  }
-  resize();
-  window.addEventListener('resize', resize);
-
   // ---- State ----
   let tool = 'pen';
   let color = '#000000';
@@ -360,6 +347,19 @@
   // History for undo
   let history = [];
   const MAX_HISTORY = 40;
+
+  // ---- Resize ----
+  function resize() {
+    const main = document.getElementById('main');
+    const W = main.clientWidth, H = main.clientHeight;
+    [drawCanvas, overlayCanvas].forEach(c => { c.width = W; c.height = H; });
+    // restore draw canvas white background after resize
+    dc.fillStyle = '#ffffff';
+    dc.fillRect(0, 0, W, H);
+    redrawHistory();
+  }
+  resize();
+  window.addEventListener('resize', resize);
 
   // ---- Toolbar wiring ----
   const toolBtns = {
